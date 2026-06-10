@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: GitHub 讨论区
+    url: ../../discussions
+    about: 关于在 ATK-DNN647 上使用 MicroPython 的问题，请在此提问。
+  - name: 上游 MicroPython
+    url: https://github.com/micropython/micropython
+    about: 与 ATK-DNN647 无关的问题请前往上游仓库反馈。

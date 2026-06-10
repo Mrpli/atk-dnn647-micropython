@@ -1,0 +1,38 @@
+name: Bug 报告
+description: 报告 ATK-DNN647 上的异常行为或缺陷
+labels: ["bug"]
+body:
+  - type: textarea
+    id: version
+    attributes:
+      label: 固件版本
+      description: |
+        打开串口REPL，按 Ctrl-B 查看启动信息，将输出粘贴到此处。
+        若为构建问题，请粘贴 `git describe --dirty` 的输出及构建环境信息。
+      placeholder: "MicroPython vX.Y.Z on YYYY-MM-DD; ATK-DNN647 with STM32N657X0"
+    validations:
+      required: true
+  - type: textarea
+    id: steps-reproduce
+    attributes:
+      label: 复现步骤
+      description: |
+        详细描述复现问题的步骤，包含相关 Python 代码（请使用代码块）。
+        构建问题请提供完整的构建命令。
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期行为
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 实际行为
+    validations:
+      required: true
+  - type: textarea
+    id: additional
+    attributes:
+      label: 补充信息
+      value: 无补充信息。

@@ -1,0 +1,28 @@
+name: 功能请求
+description: 请求 ATK-DNN647 的新功能或外设支持
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        若需求与 ATK-DNN647 无关，属于 MicroPython 核心功能，请前往
+        [上游 MicroPython 仓库](https://github.com/micropython/micropython/issues) 提交。
+  - type: textarea
+    id: feature
+    attributes:
+      label: 功能描述
+      description: |
+        描述你希望添加的功能或外设支持。
+        如涉及硬件特性，请附上相关数据手册或文档链接。
+    validations:
+      required: true
+  - type: dropdown
+    id: implementation
+    attributes:
+      label: 实现方式
+      options:
+        - 希望由维护者或社区实现
+        - 我打算自己实现并提交 Pull Request
+      multiple: true
+    validations:
+      required: true
