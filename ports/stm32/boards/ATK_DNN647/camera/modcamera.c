@@ -1,5 +1,5 @@
 /*
- * MicroPython camera module for NUCLEO-N657X0-Q with IMX335 sensor.
+ * MicroPython camera module for ATK-DNN647 with IMX335 sensor.
  *
  * Python API:
  *   import camera
@@ -8,9 +8,10 @@
  *   buf = camera.capture()               # blocking snapshot → bytes (RGB565)
  *   camera.deinit()
  *
- * Hardware (confirmed from schematic mb1940-n657x0q-c02):
- *   EN_CAM  PG4   I2C2_SCL  PD14 (AF4)
- *   NRST    PG6   I2C2_SDA  PD4  (AF4)
+ * Hardware (from ATK-DNN647 schematic):
+ *   CSI_CAM_PWDN  PG6   I2C2_SCL  PD14 (AF4)
+ *   CSI_CAM_RST   PG4   I2C2_SDA  PD4  (AF4)
+ *   IMX335 I2C addr = 0x34 (ALIENTEK module)
  */
 
 #include "py/runtime.h"
