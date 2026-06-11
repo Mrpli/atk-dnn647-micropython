@@ -79,7 +79,7 @@ make -C ports/stm32/mboot BOARD=ATK_DNN647
 
 ```bash
 # 烧录 mboot（外部 SPI Flash，仅首次需要）
-	make -C mboot BOARD=NUCLEO_N657X0 deploy-trusted
+	make -C mboot BOARD=ATK_DNN647 deploy-trusted
 
 # 烧录主固件
 STM32_Programmer_CLI \
