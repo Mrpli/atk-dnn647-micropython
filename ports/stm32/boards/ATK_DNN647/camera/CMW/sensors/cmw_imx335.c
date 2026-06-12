@@ -152,11 +152,8 @@ static int32_t CMW_IMX335_Init(void *io_ctx, CMW_Sensor_Init_t *initSensor) {
 static int32_t CMW_IMX335_Start(void *io_ctx) {
     #ifndef ISP_MW_TUNING_TOOL_SUPPORT
     int ret;
-    /* Statistic area is provided with null value so that it force the ISP Library to get the statistic
-     * area information from the tuning file.
-     */
     ISP_StatAreaTypeDef isp_stat_area = {0};
-    (void)ISP_IQParamCacheInit; /* unused */
+    (void)ISP_IQParamCacheInit;
     ret = ISP_Init(&((CMW_IMX335_t *)io_ctx)->hIsp, ((CMW_IMX335_t *)io_ctx)->hdcmipp, 0, &((CMW_IMX335_t *)io_ctx)->appliHelpers, &isp_stat_area, &ISP_IQParamCacheInit_IMX335);
     if (ret != ISP_OK) {
         return CMW_ERROR_COMPONENT_FAILURE;

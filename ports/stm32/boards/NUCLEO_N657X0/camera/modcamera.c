@@ -27,6 +27,7 @@
 #include "cmw_io.h"
 
 #include <stdio.h>
+#include <stm32n6xx_hal_dcmipp.h>
 
 /* ------------------------------------------------------------------ */
 /* I2C2 handle — referenced by cmw_io.h                               */
