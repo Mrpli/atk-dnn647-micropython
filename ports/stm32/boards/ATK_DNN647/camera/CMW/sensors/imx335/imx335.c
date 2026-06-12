@@ -342,9 +342,11 @@ static int32_t IMX335_WriteTable(IMX335_Object_t *pObj, const struct regval *reg
   * @retval IMX335_OK
   */
 static int32_t IMX335_Delay(IMX335_Object_t *pObj, uint32_t Delay) {
-    uint32_t tickstart;
-    tickstart = pObj->IO.GetTick();
-    while ((pObj->IO.GetTick() - tickstart) < Delay) {
+    (void)pObj;
+    /* Bare CPU busy-wait — does not depend on SysTick or interrupts.
+     * ~800MHz → ~0.8M NOPs per ms. */
+    for (volatile uint32_t i = 0; i < Delay * 800000UL; i++) {
+        __NOP();
     }
     return IMX335_OK;
 }
@@ -462,7 +464,6 @@ int32_t IMX335_Init(IMX335_Object_t *pObj, uint32_t Resolution, uint32_t PixelFo
 int32_t IMX335_Start(IMX335_Object_t *pObj) {
     uint8_t tmp;
     int32_t ret = IMX335_OK;
-    /* Start streaming */
     tmp = IMX335_MODE_STREAMING;
     ret = imx335_write_reg(&pObj->Ctx, IMX335_REG_MODE_SELECT, &tmp, 1);
     if (ret != IMX335_OK) {

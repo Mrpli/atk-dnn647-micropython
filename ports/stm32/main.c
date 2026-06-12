@@ -330,6 +330,67 @@ static void risaf_init(void) {
     HAL_RIF_RISC_SetSlaveSecureAttributes(RIF_RISC_PERIPH_INDEX_ETH1, RIF_ATTRIBUTE_SEC | RIF_ATTRIBUTE_PRIV);
     HAL_RIF_RISC_SetSlaveSecureAttributes(RIF_RISC_PERIPH_INDEX_DCMIPP, RIF_ATTRIBUTE_SEC | RIF_ATTRIBUTE_PRIV);
     HAL_RIF_RISC_SetSlaveSecureAttributes(RIF_RISC_PERIPH_INDEX_CSI, RIF_ATTRIBUTE_SEC | RIF_ATTRIBUTE_PRIV);
+
+    /* Lock DCMIPP and CSI RIF config (must be done before use) */
+    HAL_RIF_RISC_SlaveConfigLock(RIF_RISC_PERIPH_INDEX_DCMIPP);
+    HAL_RIF_RISC_SlaveConfigLock(RIF_RISC_PERIPH_INDEX_CSI);
+
+    /* Enable IAC interrupt for RISAF3 (Illegal Access Controller) */
+    HAL_RIF_IAC_EnableIT(RIF_AWARE_PERIPH_INDEX_RISAF3);
+    HAL_NVIC_SetPriority(IAC_IRQn, 8, 0);
+    HAL_NVIC_EnableIRQ(IAC_IRQn);
+
+    /* --- GPIO pin RIF attributes ---
+     * Every GPIO used by the application must be configured as Secure+NonPriv
+     * (CID=1) to be accessible.  Pins not listed here stay in their default
+     * reset state and may be inaccessible.
+     */
+    #define CFG_PIN(port, pin) \
+        HAL_GPIO_ConfigPinAttributes(GPIO##port, GPIO_PIN_##pin, \
+                                     GPIO_PIN_SEC | GPIO_PIN_NPRIV)
+
+    /* I2C2 (camera) */
+    CFG_PIN(D, 4);  CFG_PIN(D, 14);
+    /* CSI camera control */
+    CFG_PIN(G, 4);  CFG_PIN(G, 6);
+    /* UART1 (REPL) */
+    CFG_PIN(E, 5);  CFG_PIN(E, 6);
+    /* UART3 */
+    CFG_PIN(E, 1);  CFG_PIN(D, 9);
+    /* UART7 */
+    CFG_PIN(H, 3);  CFG_PIN(E, 7);
+    /* LEDs */
+    CFG_PIN(G, 10); CFG_PIN(E, 10);
+    /* User keys */
+    CFG_PIN(C, 6);  CFG_PIN(D, 1);  CFG_PIN(G, 11);  CFG_PIN(C, 13);
+    /* SDMMC1 */
+    CFG_PIN(C, 8);  CFG_PIN(C, 9);  CFG_PIN(C, 10);
+    CFG_PIN(C, 11); CFG_PIN(C, 12); CFG_PIN(H, 2);
+    /* SPI5 (WIRELESS) */
+    CFG_PIN(H, 6);  CFG_PIN(E, 15); CFG_PIN(H, 8);  CFG_PIN(H, 7);
+    /* FDCAN3 */
+    CFG_PIN(E, 11); CFG_PIN(E, 12);
+    /* ETH */
+    CFG_PIN(F, 4);  CFG_PIN(F, 5);  CFG_PIN(F, 7);
+    CFG_PIN(F, 10); CFG_PIN(F, 11); CFG_PIN(F, 12);
+    CFG_PIN(F, 13); CFG_PIN(F, 14); CFG_PIN(F, 15);
+    CFG_PIN(H, 5);
+    /* FMC (LCD) */
+    CFG_PIN(A, 0);  CFG_PIN(A, 1);  CFG_PIN(A, 2);
+    CFG_PIN(A, 4);  CFG_PIN(A, 5);  CFG_PIN(A, 8);
+    CFG_PIN(A, 9);  CFG_PIN(A, 10); CFG_PIN(A, 11);
+    CFG_PIN(A, 12); CFG_PIN(A, 15); CFG_PIN(B, 4);
+    CFG_PIN(B, 5);  CFG_PIN(B, 6);  CFG_PIN(B, 10);
+    CFG_PIN(B, 11); CFG_PIN(B, 12); CFG_PIN(F, 8);
+    CFG_PIN(F, 9);  CFG_PIN(G, 9);  CFG_PIN(G, 13);
+    /* LCD control */
+    CFG_PIN(A, 3);
+    /* XSPI2 (flash) — PN0-PN11 */
+    CFG_PIN(N, 0);  CFG_PIN(N, 1);  CFG_PIN(N, 2);  CFG_PIN(N, 3);
+    CFG_PIN(N, 4);  CFG_PIN(N, 5);  CFG_PIN(N, 6);
+    CFG_PIN(N, 8);  CFG_PIN(N, 9);  CFG_PIN(N, 10); CFG_PIN(N, 11);
+
+    #undef CFG_PIN
 }
 #endif
 
