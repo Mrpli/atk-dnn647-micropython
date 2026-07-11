@@ -179,14 +179,27 @@ static int32_t CMW_IMX335_Run(void *io_ctx) {
 }
 
 static void CMW_IMX335_PowerOn(CMW_IMX335_t *io_ctx) {
-    io_ctx->ShutdownPin(0); /* Disable MB1723 2V8 signal  */
+    /* EXACT CubeIDE AOI project sequence (cmw_imx335.c:213-223):
+     *   ShutdownPin(0) → Delay(100) → EnablePin(0) → Delay(100)
+     *   → ShutdownPin(1) → Delay(100) → EnablePin(1) → Delay(100)
+     *
+     *  Pin mapping (CubeIDE AOI project, confirmed working):
+     *    ShutdownPin → PG6 (NRST_CAM, active-low reset)
+     *    EnablePin   → PG4 (EN_CAM,   active-high power enable)
+     */
+    printf("[cam] PowerOn: ShutdownPin(0) [PG6=0]\r\n");
+    io_ctx->ShutdownPin(0); /* PG6=0: assert reset     */
     io_ctx->Delay(100);
-    io_ctx->EnablePin(0); /* RESET low (reset active low) */
+    printf("[cam] PowerOn: EnablePin(0) [PG4=0]\r\n");
+    io_ctx->EnablePin(0);   /* PG4=0: power off         */
     io_ctx->Delay(100);
-    io_ctx->ShutdownPin(1); /* Disable MB1723 2V8 signal  */
+    printf("[cam] PowerOn: ShutdownPin(1) [PG6=1]\r\n");
+    io_ctx->ShutdownPin(1); /* PG6=1: release reset     */
     io_ctx->Delay(100);
-    io_ctx->EnablePin(1); /* RESET low (reset active low) */
+    printf("[cam] PowerOn: EnablePin(1) [PG4=1]\r\n");
+    io_ctx->EnablePin(1);   /* PG4=1: power on          */
     io_ctx->Delay(100);
+    printf("[cam] PowerOn: done\r\n");
 }
 
 static void CMW_IMX335_VsyncEventCallback(void *io_ctx, uint32_t pipe) {
@@ -225,14 +238,38 @@ int CMW_IMX335_Probe(CMW_IMX335_t *io_ctx, CMW_Sensor_if_t *imx335_if) {
 
     ret = IMX335_RegisterBusIO(&io_ctx->ctx_driver, &io_ctx->ctx_driver.IO);
     if (ret != IMX335_OK) {
+        printf("[cam] IMX335_RegisterBusIO FAILED\r\n");
         return CMW_ERROR_COMPONENT_FAILURE;
     }
 
-    ret = IMX335_ReadID(&io_ctx->ctx_driver, &id);
+    /* --- debug: explicit I2C probe AFTER I2C init --- */
+    {
+        extern I2C_HandleTypeDef hi2c2_cam;
+        int r34 = (int)HAL_I2C_IsDeviceReady(&hi2c2_cam, (uint16_t)(0x34U << 1), 3, 100);
+        int r36 = (int)HAL_I2C_IsDeviceReady(&hi2c2_cam, (uint16_t)(0x36U << 1), 3, 100);
+        printf("[cam] I2C probe after init: IsDeviceReady(0x68)=%d (0=OK)  IsDeviceReady(0x6C)=%d (0=OK)\r\n",
+               r34, r36);
+    }
+
+    /* --- Try ReadID up to 3 times (sensor may need time to boot) --- */
+    for (int attempt = 0; attempt < 3; attempt++) {
+        if (attempt > 0) {
+            printf("[cam] ReadID retry %d after 100ms...\r\n", attempt);
+            io_ctx->Delay(100);
+        }
+        ret = IMX335_ReadID(&io_ctx->ctx_driver, &id);
+        printf("[cam] IMX335_ReadID attempt %d: ret=%d id=0x%02lX (expect 0x%02X)\r\n",
+               attempt, (int)ret, (unsigned long)id, (unsigned)IMX335_CHIP_ID);
+        if (ret == IMX335_OK && id == IMX335_CHIP_ID) {
+            break;
+        }
+    }
     if (ret != IMX335_OK) {
         return CMW_ERROR_COMPONENT_FAILURE;
     }
     if (id != IMX335_CHIP_ID) {
+        printf("[cam] CHIP_ID mismatch: got 0x%02lX, expected 0x%02X\r\n",
+               (unsigned long)id, (unsigned)IMX335_CHIP_ID);
         ret = CMW_ERROR_UNKNOWN_COMPONENT;
     }
 

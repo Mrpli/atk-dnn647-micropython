@@ -8,10 +8,31 @@
  *   buf = camera.capture()               # blocking snapshot → bytes (RGB565)
  *   camera.deinit()
  *
- * Hardware (from ATK-DNN647 schematic):
- *   CSI_CAM_PWDN  PG6   I2C2_SCL  PD14 (AF4)
- *   CSI_CAM_RST   PG4   I2C2_SDA  PD4  (AF4)
+ * Hardware (from ATK-DNN647 schematic, verified against CubeIDE AOI project):
+ *   EN   (power)  PG4   I2C2_SCL  PD14 (AF4)
+ *   NRST (reset)  PG6   I2C2_SDA  PD4  (AF4)
  *   IMX335 I2C addr = 0x34 (ALIENTEK module)
+ *
+ * RIF (Resource Isolation Framework) requirements:
+ *   The STM32N6 implements RIF security. This camera driver requires
+ *   the following resource permissions configured in risaf_init() (main.c):
+ *
+ *   Master (RIMC):
+ *     - DCMIPP: CID=1, Secure+Privileged (for DMA frame writes to SRAM)
+ *
+ *   Slave peripherals (RISC):
+ *     - DCMIPP: Secure+Privileged (register access)
+ *     - CSI:    Secure+Privileged (register access; covers MIPI D-PHY pins)
+ *
+ *   GPIO pins (GPIO RIF):
+ *     - I2C2 SCL (PD14), I2C2 SDA (PD4):  Secure+NonPriv
+ *     - NRST_CAM (PG4),  EN_CAM (PG6):     Secure+NonPriv
+ *
+ *   RISAF SRAM regions:
+ *     - No locking needed: the board runs entirely in secure mode (CID=1).
+ *
+ *   If TrustZone separation is added in the future, these permissions must
+ *   be preserved for the secure-world camera driver.
  */
 
 #include "py/runtime.h"
@@ -56,54 +77,31 @@ static volatile int s_frame_ready = 0;
 
 /* ------------------------------------------------------------------ */
 /* HAL_DCMIPP_MspInit — overrides the __weak version in cmw_camera.c  */
-/* Configures DCMIPP pixel clock (IC17 ← PLL2 ÷ 4 = 300 MHz) and    */
-/* CSI clock (IC18 ← PLL4 ÷ 20), enables peripherals, wires IRQs.    */
+/*                                                                     */
+/* Clocks are configured EXACTLY as the CubeIDE AOI project does it:  */
+/*   - PLL2 / PLL4 must be enabled BEFORE calling HAL_DCMIPP_Init     */
+/*     (they are set up in board_camera_power_and_clock_init below).   */
+/*   - IC routing is done via HAL_RCCEx_PeriphCLKConfig (same as the   */
+/*     working AOI project dcmipp.c:131-140).                          */
+/*                                                                     */
+/* Clock targets:                                                      */
+/*   PLL2: HSE 48MHz, /2, *50, P1=1 → 1200 MHz VCO                    */
+/*   IC17 (DCMIPP kernel): PLL2 / 3 = 400 MHz (max per RM0486)        */
+/*   PLL4: HSE 48MHz, /3, *25, P1=1 → 400 MHz VCO                     */
+/*   IC18 (CSI PHY): PLL4 / 20 = 20 MHz                                */
 /* ------------------------------------------------------------------ */
 void HAL_DCMIPP_MspInit(DCMIPP_HandleTypeDef *hdcmipp) {
     UNUSED(hdcmipp);
 
-    /* --- Enable PLL2 for DCMIPP (HSE 48MHz, /2=24MHz, *50=1200MHz) -- */
-    if (!LL_RCC_PLL2_IsReady()) {
-        LL_RCC_PLL2_SetSource(LL_RCC_PLLSOURCE_HSE);
-        LL_RCC_PLL2_SetM(2);
-        LL_RCC_PLL2_SetN(50);
-        LL_RCC_PLL2_SetFRACN(0);
-        LL_RCC_PLL2_SetP1(1);
-        LL_RCC_PLL2_SetP2(1);
-        LL_RCC_PLL2P_Enable();
-        LL_RCC_PLL2_Enable();
-        while (!LL_RCC_PLL2_IsReady()) {
-        }
-    }
-
-    /* --- Enable PLL4 for CSI PHY (HSE 48MHz, /3=16MHz, *25=400MHz) -- */
-    if (!LL_RCC_PLL4_IsReady()) {
-        LL_RCC_PLL4_SetSource(LL_RCC_PLLSOURCE_HSE);
-        LL_RCC_PLL4_SetM(3);
-        LL_RCC_PLL4_SetN(25);
-        LL_RCC_PLL4_SetFRACN(0);
-        LL_RCC_PLL4_SetP1(1);
-        LL_RCC_PLL4_SetP2(1);
-        LL_RCC_PLL4P_Enable();
-        LL_RCC_PLL4_Enable();
-        while (!LL_RCC_PLL4_IsReady()) {
-        }
-    }
-
-    /* --- IC17 (DCMIPP): PLL2 P1 ÷ 4 = 1200 / 4 = 300 MHz --- */
-    MODIFY_REG(RCC->IC17CFGR,
-               RCC_IC17CFGR_IC17SEL | RCC_IC17CFGR_IC17INT,
-               RCC_ICCLKSOURCE_PLL2 | ((4U - 1U) << RCC_IC17CFGR_IC17INT_Pos));
-    LL_RCC_IC17_Enable();
-
-    /* --- IC18 (CSI): PLL4 P1 ÷ 20 = 400 / 20 = 20 MHz --- */
-    MODIFY_REG(RCC->IC18CFGR,
-               RCC_IC18CFGR_IC18SEL | RCC_IC18CFGR_IC18INT,
-               RCC_ICCLKSOURCE_PLL4 | ((20U - 1U) << RCC_IC18CFGR_IC18INT_Pos));
-    LL_RCC_IC18_Enable();
-
-    /* --- Route DCMIPP kernel clock to IC17 (CCIPR1) --- */
-    MODIFY_REG(RCC->CCIPR1, RCC_CCIPR1_DCMIPPSEL, LL_RCC_DCMIPP_CLKSOURCE_IC17);
+    /* --- IC17 / IC18 routing via HAL (same as CubeIDE dcmipp.c) ----- */
+    RCC_PeriphCLKInitTypeDef clk = {0};
+    clk.PeriphClockSelection = RCC_PERIPHCLK_DCMIPP | RCC_PERIPHCLK_CSI;
+    clk.DcmippClockSelection = RCC_DCMIPPCLKSOURCE_IC17;
+    clk.ICSelection[RCC_IC17].ClockSelection = RCC_ICCLKSOURCE_PLL2;
+    clk.ICSelection[RCC_IC17].ClockDivider = 3;   /* PLL2 / 3 = 400 MHz */
+    clk.ICSelection[RCC_IC18].ClockSelection = RCC_ICCLKSOURCE_PLL4;
+    clk.ICSelection[RCC_IC18].ClockDivider = 20;   /* PLL4 / 20 = 20 MHz */
+    HAL_RCCEx_PeriphCLKConfig(&clk);
 
     /* --- DCMIPP ---------------------------------------------------- */
     __HAL_RCC_DCMIPP_CLK_ENABLE();
@@ -152,6 +150,46 @@ static mp_obj_t camera_init(size_t n_args, const mp_obj_t *args) {
         s_height = mp_obj_get_int(args[1]);
     }
 
+    /* --- First-time PLL2 / PLL4 setup (direct register writes) -----
+     * These must be enabled BEFORE HAL_DCMIPP_Init → MspInit because
+     * PeriphCLKConfig selects IC17←PLL2 and IC18←PLL4.
+     * We use raw register writes (matching the AOI project FSBL) to
+     * avoid any potential RIF interference with LL / HAL helpers.
+     * ---------------------------------------------------------------- */
+    if (!(RCC->SR & RCC_SR_PLL2RDY)) {
+        /* PLL2: HSE 48 MHz, /2, *50 → VCO 1200 MHz, P1=1 */
+        RCC->PLL2CFGR1 = (2U << RCC_PLL2CFGR1_PLL2SEL_Pos)   /* HSE */
+                       | (2U << RCC_PLL2CFGR1_PLL2DIVM_Pos)  /* /2  */
+                       | (50U << RCC_PLL2CFGR1_PLL2DIVN_Pos); /* *50 */
+        RCC->PLL2CFGR2 = 0;  /* no fractional */
+        RCC->PLL2CFGR3 = (1U << RCC_PLL2CFGR3_PLL2PDIV1_Pos) /* P1=1 */
+                       | (1U << RCC_PLL2CFGR3_PLL2PDIV2_Pos) /* P2=1 */
+                       | RCC_PLL2CFGR3_PLL2PDIVEN;             /* enable P1 */
+        __DSB();
+        RCC->CSR |= RCC_CSR_PLL2ONS;  /* enable PLL2 */
+        __DSB();
+        while (!(RCC->SR & RCC_SR_PLL2RDY)) { }
+    }
+
+    if (!(RCC->SR & RCC_SR_PLL4RDY)) {
+        /* PLL4: HSE 48 MHz, /3, *25 → VCO 400 MHz, P1=1 */
+        RCC->PLL4CFGR1 = (2U << RCC_PLL4CFGR1_PLL4SEL_Pos)   /* HSE */
+                       | (3U << RCC_PLL4CFGR1_PLL4DIVM_Pos)  /* /3  */
+                       | (25U << RCC_PLL4CFGR1_PLL4DIVN_Pos); /* *25 */
+        RCC->PLL4CFGR2 = 0;  /* no fractional */
+        RCC->PLL4CFGR3 = (1U << RCC_PLL4CFGR3_PLL4PDIV1_Pos) /* P1=1 */
+                       | (1U << RCC_PLL4CFGR3_PLL4PDIV2_Pos) /* P2=1 */
+                       | RCC_PLL4CFGR3_PLL4PDIVEN;             /* enable P1 */
+        __DSB();
+        RCC->CSR |= RCC_CSR_PLL4ONS;  /* enable PLL4 */
+        __DSB();
+        while (!(RCC->SR & RCC_SR_PLL4RDY)) { }
+    }
+
+    printf("[cam] PLL2 ready=%lu  PLL4 ready=%lu\r\n",
+           (RCC->SR & RCC_SR_PLL2RDY) ? 1UL : 0UL,
+           (RCC->SR & RCC_SR_PLL4RDY) ? 1UL : 0UL);
+
     /* Build CMW init struct for full-sensor 2592×1944 RAW10 stream   */
     CMW_CameraInit_t cfg = {
         .width = 2592,
@@ -197,6 +235,12 @@ static mp_obj_t camera_capture(void) {
     }
 
     s_frame_ready = 0;
+
+    /* Before DMA writes to the buffer, clean any dirty cache lines
+     * in this region so they do not later evict and clobber the
+     * DMA-written frame data. */
+    SCB_CleanDCache_by_Addr((volatile void *)buf, (int32_t)buf_size);
+
     if (CMW_CAMERA_Start(DCMIPP_PIPE1, (uint8_t *)buf, CMW_MODE_SNAPSHOT)
         != CMW_ERROR_NONE) {
         m_free(buf);
@@ -212,6 +256,11 @@ static mp_obj_t camera_capture(void) {
         }
         __WFI();
     }
+
+    /* After DMA has written the frame to SRAM, invalidate the cache
+     * so the CPU sees the fresh data. Without this, stale cache lines
+     * are returned to the Python caller. */
+    SCB_InvalidateDCache_by_Addr((volatile void *)buf, (int32_t)buf_size);
 
     /* Return as bytearray — avoids extra copy that doubles memory usage */
     mp_obj_t result = mp_obj_new_bytearray_by_ref(buf_size, buf);

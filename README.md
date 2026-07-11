@@ -3,7 +3,7 @@
 [![stm32 port](https://github.com/Mrpli/atk-dnn647-micropython/actions/workflows/ports_stm32.yml/badge.svg)](https://github.com/Mrpli/atk-dnn647-micropython/actions/workflows/ports_stm32.yml)
 
 本项目是基于 [MicroPython](https://micropython.org) 官方最新版
-专为正点原子 **ATK-DNN647** 开发板（STM32N657X0）定制的固件。
+专为正点原子 **ATK-DNN647** 开发板（STM32N647X0H3Q）定制的固件。
 
 开发板具体信息，可查阅官方文档：[正点原子ATK-DNN647官方wiki](https://wiki.alientek.com/docs/Boards/STM32/DNN647/TOC)
 

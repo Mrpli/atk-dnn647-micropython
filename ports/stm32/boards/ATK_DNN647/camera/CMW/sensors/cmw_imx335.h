@@ -47,7 +47,7 @@ typedef struct
     void (*EnablePin)(int value);
 } CMW_IMX335_t;
 
-int CMW_IMX335_Probe(CMW_IMX335_t *io_ctx, CMW_Sensor_if_t *vd55g1_if);
+int CMW_IMX335_Probe(CMW_IMX335_t *io_ctx, CMW_Sensor_if_t *imx335_if);
 
 #ifdef __cplusplus
 }

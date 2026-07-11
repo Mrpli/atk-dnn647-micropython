@@ -62,7 +62,7 @@ extern "C" {
 #define IMX335_REG_TPG            0x329e
 
 #define IMX335_REG_ID             0x3912
-#define IMX335_CHIP_ID            0x00
+#define IMX335_CHIP_ID            0x35
 
 #define IMX335_SHUTTER_MIN        9
 
