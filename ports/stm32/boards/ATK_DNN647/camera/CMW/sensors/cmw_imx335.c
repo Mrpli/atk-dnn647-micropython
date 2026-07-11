@@ -248,7 +248,7 @@ int CMW_IMX335_Probe(CMW_IMX335_t *io_ctx, CMW_Sensor_if_t *imx335_if) {
         int r34 = (int)HAL_I2C_IsDeviceReady(&hi2c2_cam, (uint16_t)(0x34U << 1), 3, 100);
         int r36 = (int)HAL_I2C_IsDeviceReady(&hi2c2_cam, (uint16_t)(0x36U << 1), 3, 100);
         printf("[cam] I2C probe after init: IsDeviceReady(0x68)=%d (0=OK)  IsDeviceReady(0x6C)=%d (0=OK)\r\n",
-               r34, r36);
+            r34, r36);
     }
 
     /* --- Try ReadID up to 3 times (sensor may need time to boot) --- */
@@ -259,7 +259,7 @@ int CMW_IMX335_Probe(CMW_IMX335_t *io_ctx, CMW_Sensor_if_t *imx335_if) {
         }
         ret = IMX335_ReadID(&io_ctx->ctx_driver, &id);
         printf("[cam] IMX335_ReadID attempt %d: ret=%d id=0x%02lX (expect 0x%02X)\r\n",
-               attempt, (int)ret, (unsigned long)id, (unsigned)IMX335_CHIP_ID);
+            attempt, (int)ret, (unsigned long)id, (unsigned)IMX335_CHIP_ID);
         if (ret == IMX335_OK && id == IMX335_CHIP_ID) {
             break;
         }
@@ -269,7 +269,7 @@ int CMW_IMX335_Probe(CMW_IMX335_t *io_ctx, CMW_Sensor_if_t *imx335_if) {
     }
     if (id != IMX335_CHIP_ID) {
         printf("[cam] CHIP_ID mismatch: got 0x%02lX, expected 0x%02X\r\n",
-               (unsigned long)id, (unsigned)IMX335_CHIP_ID);
+            (unsigned long)id, (unsigned)IMX335_CHIP_ID);
         ret = CMW_ERROR_UNKNOWN_COMPONENT;
     }
 
