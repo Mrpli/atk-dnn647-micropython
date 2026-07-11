@@ -18,6 +18,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "imx335.h"
+#include <stdio.h>
 #include <string.h>
 
 /** @addtogroup BSP
@@ -495,12 +496,16 @@ int32_t IMX335_DeInit(IMX335_Object_t *pObj) {
   */
 int32_t IMX335_ReadID(IMX335_Object_t *pObj, uint32_t *Id) {
     int32_t ret;
-    uint8_t tmp;
+    uint8_t tmp = 0xFF;
 
     /* Initialize I2C */
     pObj->IO.Init();
 
-    if (imx335_read_reg(&pObj->Ctx, IMX335_REG_ID, &tmp, 1) != IMX335_OK) {
+    printf("[cam] IMX335_ReadID: reading reg 0x%04X from dev 0x%02X...\r\n",
+           (unsigned)IMX335_REG_ID, (unsigned)pObj->IO.Address);
+    int32_t rc = imx335_read_reg(&pObj->Ctx, IMX335_REG_ID, &tmp, 1);
+    printf("[cam] IMX335_ReadID: rc=%d tmp=0x%02X\r\n", (int)rc, (unsigned)tmp);
+    if (rc != IMX335_OK) {
         ret = IMX335_ERROR;
     } else {
         *Id = tmp;

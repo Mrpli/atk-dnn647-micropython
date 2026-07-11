@@ -1,11 +1,11 @@
 /*
  * Board IO adapter for STM32_MW_CAMERA on ATK-DNN647.
  *
- * Pin assignments from ATK-DNN647 schematic:
- *   CSI_CAM_PWDN (camera power enable, active-high) -> PG6
- *   CSI_CAM_RST  (camera reset, active-low)         -> PG4
- *   I2C2_SCL                                        -> PD14 (AF4)
- *   I2C2_SDA                                        -> PD4  (AF4)
+ * Pin assignments (verified against working CubeIDE AOI project):
+ *   EN  (camera power enable, active-high)  -> PG4
+ *   NRST (camera reset, active-low)         -> PG6
+ *   I2C2_SCL                                -> PD14 (AF4)
+ *   I2C2_SDA                                -> PD4  (AF4)
  *   I2C2 timing = 0x10707DBC  @ CLKP = 100 MHz, 100 kHz
  *   IMX335 I2C address = 0x34 (ALIENTEK module)
  */
@@ -21,19 +21,22 @@ extern "C" {
 #include <stdio.h>
 
 /* IMX335 I2C address
- * 8-bit write addresses: 0x34 or 0x36 depending on SLASEL strap
- * ALIENTEK IMX335 module uses 0x34 */
-#define CAMERA_IMX335_ADDRESS  0x34U
+ * 7-bit addresses: 0x34 or 0x36 depending on SLASEL strap.
+ * ALIENTEK IMX335 module uses 0x34.
+ * STM32 HAL I2C functions treat the DevAddress as ALREADY SHIFTED
+ * (confirmed: IsDeviceReady(a<<1) finds device 'a'; Mem_Read(0x34)
+ *  talks to 7-bit device 0x1A).  So pass 0x34 << 1 = 0x68. */
+#define CAMERA_IMX335_ADDRESS  (0x34U << 1)
 
 /* ---- Camera control GPIO ---- */
-/* CSI_CAM_PWDN: PG6  active-high enable */
+/* EN (power enable): PG4, active-high */
 #define EN_CAM_PORT   GPIOG
-#define EN_CAM_PIN    GPIO_PIN_6
+#define EN_CAM_PIN    GPIO_PIN_4
 #define EN_CAM_GPIO_CLK_ENABLE()   __HAL_RCC_GPIOG_CLK_ENABLE()
 
-/* CSI_CAM_RST: PG4  active-low reset */
+/* NRST (reset): PG6, active-low */
 #define NRST_CAM_PORT   GPIOG
-#define NRST_CAM_PIN    GPIO_PIN_4
+#define NRST_CAM_PIN    GPIO_PIN_6
 #define NRST_CAM_GPIO_CLK_ENABLE()  __HAL_RCC_GPIOG_CLK_ENABLE()
 
 /* VDDIO for GPIOG is VDDIO4 (3.3V) — already enabled by board_early_init(). */
@@ -99,10 +102,10 @@ static inline int32_t CMW_IO_I2C_Init(void) {
         printf("[cam] I2C Init OK\r\n");
     }
     if (CAMERA_DBG) {
-        /* Check GPIO state: read EN_CAM(PG6) and NRST_CAM(PG4) */
-        int en = (GPIOG->ODR >> 6) & 1;
-        int rst = (GPIOG->ODR >> 4) & 1;
-        printf("[cam] GPIO: EN_CAM(PG6)=%d NRST_CAM(PG4)=%d (both should be 1)\r\n", en, rst);
+        /* Check GPIO state: read EN(PG4) and NRST(PG6) */
+        int pg4 = (GPIOG->ODR >> 4) & 1;
+        int pg6 = (GPIOG->ODR >> 6) & 1;
+        printf("[cam] GPIO: EN(PG4)=%d NRST(PG6)=%d (both should be 1)\r\n", pg4, pg6);
 
         /* Check bus hardware: read SCL/SDA levels */
         GPIO_InitTypeDef g = {0};
